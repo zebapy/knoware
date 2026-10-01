@@ -8,6 +8,10 @@ A keyboard-first desktop app for running and steering coding agents, drawn as a 
 
 Agent-agnostic via the [Agent Client Protocol](https://agentclientprotocol.com) (Claude Code, Codex, and any other ACP agent). A Tauri app with a Rust backend.
 
+![A planet view: a blob on a worktree moon is blocked on a permission request, shown in the session panel. The volcanic planet has a construction crane for its uncommitted diff and smoking factories from too many agents.](docs/screenshots/session.png)
+
+![The galaxy view: each repo is a planet whose biome comes from its main language: volcanic Rust, jungle TypeScript, ocean Python, tundra Go, crystal Ruby, toxic C, a ringed gas giant for a polyglot repo, and barren rock for a plain folder.](docs/screenshots/galaxy.png)
+
 ## Run it
 
 Needs Rust, Node 22+, pnpm, `git`, and (for PR/CI signals) the GitHub CLI `gh`, signed in. On Linux, also the [Tauri system packages](https://v2.tauri.app/start/prerequisites/#linux).

@@ -56,6 +56,8 @@ html, body {
   padding: 12px;
   background: var(--panel);
   border-left: 1px solid var(--line);
+  /* Above the world's label layer, whose labels carry their own z-index. */
+  z-index: 10;
 }
 #panel[hidden] { display: none; }
 
