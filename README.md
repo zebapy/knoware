@@ -50,6 +50,32 @@ First launch: press `a` and give a path to a repo or folder. Press `?` in the ap
 
 Closing the window keeps agents running. The tray icon brings it back and bounces while anything is blocked.
 
+## Blob states
+
+Each blob shows what its agent is doing, so you can scan a planet without opening anything.
+
+![Thirteen blobs on one planet, each in a different state: sub-agents, working, blocked, your turn, PR with CI running, CI passing, CI failing, linked issues, tiny and big context, dormant, decaying, and crumbling.](docs/screenshots/blob-states.gif)
+
+| State | Looks like |
+|---|---|
+| Working | Teal; edges ripple fast and it hops gently |
+| Sub-agents | Smaller blobs trailing behind it |
+| Blocked | Amber, bouncing hard, with a `!` bubble and the pending command as its label. First in the `Space` queue |
+| Your turn | Quiet, eyes looking up, no bounce |
+| PR open, CI running | Purple |
+| CI passing | Green, happy eyes, the occasional jump |
+| CI failing | Red, squashed, sad eyes and a falling tear |
+| Linked issues | Small amber dots on the body, one per issue key in the branch name |
+| Context | Size grows with how much of the context window is used |
+| Dormant | Eyes closed, nearly still, drifting z's (2 hours idle, or not running) |
+| Decaying | Greys out, sags and loses pixels as the session or PR goes stale, then a fly circles it |
+
+Deleting a blob plays shocked eyes, a building shake (the undo window), then it shatters into drifting pixel chunks:
+
+![A blob being deleted: its eyes go wide, it shakes, then it shatters into pixel chunks while its neighbors stay put.](docs/screenshots/blob-delete.gif)
+
+These come from `gallery.html`, a dev-only page that renders fixture scenes with a fixed clock. To regenerate them, run `pnpm dev`, then `node scripts/capture-gallery.mjs`.
+
 ## How it works
 
 - **`src-tauri/src/agent.rs`** — the ACP client. Each blob gets its own agent subprocess (on its own thread) speaking ACP over stdio: `initialize`, `session/new` / `session/load` / `session/resume` / `session/fork`, `session/prompt`, `session/cancel`. Permission requests park until you answer. `session/list` discovers sessions you already have; they're placed on a planet by working directory and appear dormant.
