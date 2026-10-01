@@ -3,6 +3,7 @@ name = "knoware"
 version = "0.1.0"
 description = "Keyboard-first control surface for coding agents"
 edition = "2024"
+license = "MIT"
 rust-version = "1.88"
 
 [lib]
