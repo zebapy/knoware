@@ -3,7 +3,7 @@ import './styles.css';
 import { api, events, type Created } from './api';
 import * as M from './model';
 import { Renderer, planetLayout, type Deleting, type Level, type Scene } from './render';
-import type { Blob, Entry, World } from './types';
+import type { Blob, DiffStat, Entry, World } from './types';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const stage = $<HTMLDivElement>('stage');
@@ -19,12 +19,14 @@ const askForm = $<HTMLFormElement>('ask-form');
 const askLabel = $<HTMLLabelElement>('ask-label');
 const askInput = $<HTMLInputElement>('ask-input');
 const help = $<HTMLDivElement>('help');
+const tip = $<HTMLDivElement>('tip');
 
 const renderer = new Renderer($<HTMLCanvasElement>('cv'), $<HTMLDivElement>('labels'));
 
 const S = {
   world: { planets: [], moons: [], blobs: [] } as World,
   thresholds: M.DEFAULT_THRESHOLDS,
+  crowdedAt: 4,
   level: 'galaxy' as Level,
   planetId: null as string | null,
   selId: null as string | null,
@@ -125,6 +127,8 @@ function renderPanel() {
   );
   head.append(title, meta);
   if (b.pr) head.append(el('div', 'meta', `PR #${b.pr.number} ${b.pr.state} · ${b.pr.url}`));
+  const hostDiff = moon ? moon.diff : P?.diff;
+  if (hostDiff?.files) head.append(el('div', 'meta diff', `diff ${M.diffSummary(hostDiff)}`));
 
   const list = S.transcripts.get(b.id) ?? [];
   const stick = transcriptEl.scrollHeight - transcriptEl.scrollTop - transcriptEl.clientHeight < 40;
@@ -456,6 +460,64 @@ stage.addEventListener('click', (ev) => {
   select(id);
 });
 
+// ---------- hover ----------
+
+function diffBlock(box: HTMLElement, title: string, d: DiffStat, agents: number) {
+  box.append(el('div', 'tip-title', title));
+  box.append(el('div', 'tip-sum', M.diffSummary(d)));
+  for (const f of d.top) {
+    const row = el('div', 'tip-file');
+    row.append(el('span', 'tip-path', f.path), el('span', 'ins', `+${f.insertions}`), el('span', 'del', `−${f.deletions}`));
+    box.append(row);
+  }
+  const smog = M.pollution(agents, S.crowdedAt);
+  box.append(el('div', 'tip-meta', `${agents} agent${agents === 1 ? '' : 's'}${smog ? ' · crowded, consider fewer' : ''}`));
+}
+
+function showTip(kind: 'planet' | 'moon', id: string, cx: number, cy: number) {
+  tip.replaceChildren();
+  const agentsOn = (planetId: string, moonId: string | null) =>
+    S.world.blobs.filter((b) => b.planetId === planetId && b.moonId === moonId).length;
+  if (kind === 'moon') {
+    const m = S.world.moons.find((q) => q.id === id);
+    if (!m) return hideTip();
+    diffBlock(tip, m.branch, m.diff, agentsOn(m.planetId, m.id));
+  } else {
+    const P = S.world.planets.find((q) => q.id === id);
+    if (!P) return hideTip();
+    if (S.level === 'galaxy') {
+      // Whole planet: root plus every moon, one line each.
+      const moons = S.world.moons.filter((m) => m.planetId === P.id);
+      tip.append(el('div', 'tip-title', P.name));
+      tip.append(el('div', 'tip-sum', M.diffSummary(M.sumDiffs([P.diff, ...moons.map((m) => m.diff)]))));
+      for (const [name, d] of [['root', P.diff] as const, ...moons.map((m) => [m.branch, m.diff] as const)])
+        if (d.files) tip.append(el('div', 'tip-file', `${name}: ${M.diffSummary(d)}`));
+      const n = S.world.blobs.filter((b) => b.planetId === P.id).length;
+      tip.append(el('div', 'tip-meta', `${n} agent${n === 1 ? '' : 's'} · ${moons.length} moon${moons.length === 1 ? '' : 's'}`));
+    } else diffBlock(tip, `${P.name} · root checkout`, P.diff, agentsOn(P.id, null));
+  }
+  tip.hidden = false;
+  const r = document.getElementById('app')!.getBoundingClientRect();
+  tip.style.left = Math.min(cx + 14, r.width - tip.offsetWidth - 8) + 'px';
+  tip.style.top = Math.min(cy + 14, r.height - tip.offsetHeight - 8) + 'px';
+}
+
+function hideTip() {
+  tip.hidden = true;
+}
+
+stage.addEventListener('mousemove', (ev) => {
+  const r = stage.getBoundingClientRect();
+  const x = (ev.clientX - r.left) / renderer.scale, y = (ev.clientY - r.top) / renderer.scale;
+  const hit = renderer.hoverables
+    .map((h) => ({ h, d: Math.hypot(h.x - x, h.y - y) }))
+    .filter(({ h, d }) => d <= h.r)
+    .sort((a, b) => a.d - b.d)[0];
+  if (hit) showTip(hit.h.kind, hit.h.id, ev.clientX, ev.clientY);
+  else hideTip();
+});
+stage.addEventListener('mouseleave', hideTip);
+
 // ---------- loop ----------
 
 function sceneNow(): Scene {
@@ -466,6 +528,7 @@ function sceneNow(): Scene {
     selId: S.selId,
     thresholds: S.thresholds,
     deleting: S.deleting,
+    crowdedAt: S.crowdedAt,
     born: S.born,
   };
 }
@@ -510,6 +573,7 @@ events.onMoonsDropped((ids) => say(`${ids.length} merged moon${ids.length > 1 ? 
 api.getState().then(({ world, settings }) => {
   S.world = world;
   S.thresholds = settings;
+  S.crowdedAt = settings.crowdedAt ?? 4;
   S.planetId = world.planets[0]?.id ?? null;
   say(world.planets.length ? 'Arrows pick a planet, Enter zooms in, ? for keys' : 'Press a to add your first planet');
   ui();

@@ -92,3 +92,28 @@ describe('attention', () => {
     expect(M.nextBlocked([blob()], null)).toBeUndefined();
   });
 });
+
+describe('planet surface', () => {
+  const diff = (insertions: number, deletions: number, files = 1) => ({ files, insertions, deletions, untracked: 0, top: [] });
+
+  it('pollutes once a host is crowded', () => {
+    expect(M.pollution(3, 4)).toBe(0);
+    expect(M.pollution(4, 4)).toBe(0.25);
+    expect(M.pollution(7, 4)).toBe(1);
+    expect(M.pollution(20, 4)).toBe(1);
+  });
+
+  it('sizes construction by churn', () => {
+    expect(M.construction(diff(0, 0, 0))).toBe(0);
+    expect(M.construction(diff(0, 0, 1))).toBe(1);
+    expect(M.construction(diff(30, 5))).toBe(1);
+    expect(M.construction(diff(200, 100))).toBe(2);
+    expect(M.construction(diff(900, 10))).toBe(3);
+  });
+
+  it('summarizes diffs', () => {
+    expect(M.diffSummary(diff(0, 0, 0))).toBe('clean');
+    expect(M.diffSummary({ ...diff(12, 3, 2), untracked: 1 })).toBe('+12 −3 · 2 files (1 new)');
+    expect(M.sumDiffs([diff(1, 2), diff(3, 4, 2)])).toMatchObject({ files: 3, insertions: 4, deletions: 6 });
+  });
+});

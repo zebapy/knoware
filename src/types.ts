@@ -10,6 +10,24 @@ export interface Planet {
   path: string;
   isRepo: boolean;
   traits: PlanetTraits;
+  /** Uncommitted work in the root checkout. */
+  diff: DiffStat;
+}
+
+export interface FileDiff {
+  path: string;
+  insertions: number;
+  deletions: number;
+}
+
+/** Uncommitted work in one checkout (src-tauri/src/diff.rs). */
+export interface DiffStat {
+  files: number;
+  insertions: number;
+  deletions: number;
+  untracked: number;
+  /** Biggest changes first, at most a handful. */
+  top: FileDiff[];
 }
 
 /** Surveyed from the directory (src-tauri/src/survey.rs); drives the planet's biome and shape. */
@@ -26,6 +44,7 @@ export interface Moon {
   branch: string;
   path: string;
   dirty: boolean;
+  diff: DiffStat;
 }
 
 export interface PermissionChoice {
@@ -82,6 +101,7 @@ export interface Settings {
   prDecayStartDays: number;
   prDecayFullDays: number;
   autoCleanupMergedMoons: boolean;
+  crowdedAt: number;
 }
 
 export type Entry =

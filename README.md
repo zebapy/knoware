@@ -69,6 +69,11 @@ Every planet is generated from its directory, so the same repo always becomes th
 
 Unknown languages get a biome picked from the path's hash. Bigger repos are bigger planets. Repos with 1,000+ commits wear rings. Spin speed, axial tilt, terrain and clouds all come from the path's hash.
 
+### Work on the surface
+
+- **Construction:** uncommitted work in a planet's root checkout or a moon's worktree appears as construction on it. This is `git diff HEAD` plus untracked files, polled every few seconds. Under 40 changed lines shows cones, under 400 shows scaffolding, and more shows a crane swinging a load. Hover a planet or moon to see `+/−` lines, file counts and the biggest changed files. The session panel shows the same diff for the selected blob's checkout.
+- **Pollution:** a planet root or moon with too many agents (`crowdedAt`, default 4) grows factories with smoking chimneys, a smog belt, and a brown haze over its surface. These get worse as more agents pile on.
+
 ## Settings
 
 `settings.json` in the app's config dir (`~/.config/knoware/` on Linux, `~/Library/Application Support/knoware/` on macOS) is written with defaults on first launch:
@@ -87,7 +92,9 @@ Unknown languages get a biome picked from the path's hash. Bigger repos are bigg
   "prDecayFullDays": 21,
   "autoCleanupMergedMoons": false,
   "worktreeRoot": "~/.knoware/worktrees",
-  "signalsPollSecs": 60
+  "signalsPollSecs": 60,
+  "diffPollSecs": 8,
+  "crowdedAt": 4
 }
 ```
 

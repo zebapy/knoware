@@ -202,3 +202,24 @@ kbd {
 }
 #help dt { font-family: var(--pixel); font-size: 18px; color: var(--accent); }
 #help dd { margin: 0; }
+
+#tip {
+  position: absolute;
+  z-index: 20;
+  max-width: 360px;
+  padding: 8px 10px;
+  pointer-events: none;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 12px;
+}
+#tip[hidden] { display: none; }
+.tip-title { font-family: var(--pixel); font-size: 20px; color: var(--text); }
+.tip-sum { color: #f2b24c; margin-bottom: 4px; }
+.tip-file { display: flex; gap: 8px; font-family: ui-monospace, monospace; font-size: 11px; color: #b9b6e8; }
+.tip-path { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ins { color: #5fd3a0; }
+.del { color: #f0566e; }
+.tip-meta { color: var(--muted); margin-top: 4px; }
+#panel-head .meta.diff { color: #f2b24c; }

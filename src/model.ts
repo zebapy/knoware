@@ -1,5 +1,5 @@
 // Pure rules that turn world data into what a blob looks like and where focus moves.
-import type { Blob, PermissionChoice, Settings } from './types';
+import type { Blob, DiffStat, PermissionChoice, Settings } from './types';
 
 export type Palette = 'work' | 'pr' | 'green' | 'red' | 'attn';
 export type Mood = 'neutral' | 'happy' | 'sad';
@@ -100,4 +100,36 @@ export function nextBlocked(blobs: Blob[], current: string | null): Blob | undef
   if (!blocked.length) return undefined;
   const i = blocked.findIndex((b) => b.id === current);
   return blocked[(i + 1) % blocked.length];
+}
+
+/** 0..1 — how polluted a planet root or moon looks once too many agents crowd onto it. */
+export function pollution(agents: number, crowdedAt: number): number {
+  if (agents < crowdedAt) return 0;
+  return clamp01((agents - crowdedAt + 1) / 4);
+}
+
+/** Construction size for uncommitted work: 0 none, 1 cones, 2 scaffolding, 3 crane. */
+export function construction(d: DiffStat | undefined): 0 | 1 | 2 | 3 {
+  if (!d || !d.files) return 0;
+  const churn = d.insertions + d.deletions;
+  return churn < 40 ? 1 : churn < 400 ? 2 : 3;
+}
+
+export function diffSummary(d: DiffStat): string {
+  if (!d.files) return 'clean';
+  const files = `${d.files} file${d.files === 1 ? '' : 's'}`;
+  const untracked = d.untracked ? ` (${d.untracked} new)` : '';
+  return `+${d.insertions} −${d.deletions} · ${files}${untracked}`;
+}
+
+/** Add up several checkouts' diffs, e.g. a planet root and all its moons. */
+export function sumDiffs(list: DiffStat[]): DiffStat {
+  const out: DiffStat = { files: 0, insertions: 0, deletions: 0, untracked: 0, top: [] };
+  for (const d of list) {
+    out.files += d.files;
+    out.insertions += d.insertions;
+    out.deletions += d.deletions;
+    out.untracked += d.untracked;
+  }
+  return out;
 }

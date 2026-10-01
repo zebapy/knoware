@@ -2,6 +2,7 @@
 // Ported from prototypes/galaxy.html; layout now scales to any number of planets, moons and blobs.
 import * as B from './biome';
 import * as M from './model';
+import * as St from './structures';
 import type { Thresholds } from './model';
 import type { Blob, Moon, Planet, World } from './types';
 
@@ -76,6 +77,8 @@ export interface Scene {
   thresholds: Thresholds;
   deleting: Deleting | null;
   born: Map<string, number>;
+  /** Agents on one host before it looks polluted. */
+  crowdedAt: number;
 }
 
 export interface Label {
@@ -115,6 +118,7 @@ export function planetLook(p: Planet): B.Look {
 }
 
 const BAYER = [0, 0.5, 0.75, 0.25];
+const SMOG = '#6a5a3a';
 const LIGHT = (() => {
   const v = [-0.55, -0.6, 0.58], n = Math.hypot(...v);
   return v.map((c) => c / n);
@@ -145,7 +149,7 @@ export function galaxyLayout(world: World, W: number, H: number): Map<string, Sp
 
 /** Planet view: planet on top, moons beside it (alternating right, left), blobs hanging off their host in stable slots. */
 export function planetLayout(world: World, planetId: string, W: number, H: number, cam: number): PlanetLayout {
-  const X0 = Math.round(W / 2 + cam), Y0 = 30;
+  const X0 = Math.round(W / 2 + cam), Y0 = 40;
   const moonList = world.moons.filter((m) => m.planetId === planetId);
   const perSide = Math.ceil(moonList.length / 2);
   const step = perSide > 1 ? Math.min(72, (W / 2 - 70) / (perSide - 1)) : 72;
@@ -194,6 +198,31 @@ export class Renderer {
   drawn = new Map<string, { x: number; y: number; r: number; gy: number }>();
   moonsDrawn = new Map<string, { x: number; y: number }>();
   planetsDrawn = new Map<string, Spot & { r: number }>();
+  /** Planets and moons under the pointer can show their diff; filled each frame. */
+  hoverables: { kind: 'planet' | 'moon'; id: string; x: number; y: number; r: number }[] = [];
+  private put: St.Put = (x, y, c) => this.px(x, y, c);
+
+  /** Pixel position on a body's rim at angle `a` (radians, 0 = right, -PI/2 = top). */
+  private rim(X: number, Y: number, r: number, a: number) {
+    return { x: Math.round(X + Math.cos(a) * (r - 1)), y: Math.round(Y + Math.sin(a) * (r - 1)) };
+  }
+
+  /** Factories, smog and construction on a planet root or moon. */
+  private surfaceLife(X: number, Y: number, r: number, smog: number, build: number, t: number, seed: number, small: boolean) {
+    if (smog > 0) {
+      St.smog(this.put, X, Y, r, smog, t);
+      const count = small ? (smog > 0.5 ? 2 : 1) : 1 + Math.round(smog * 2);
+      const angles = small ? [-2.3, -1.85] : [-2.7, -2.2, -1.75];
+      for (let i = 0; i < count; i++) {
+        const at = this.rim(X, Y, r, angles[i]);
+        St.factory(this.put, at.x, at.y, t, seed + i * 7, small);
+      }
+    }
+    if (build > 0) {
+      const at = this.rim(X, Y, r, small ? -0.85 : -0.9);
+      St.construction(this.put, at.x, at.y, build, t, seed, small);
+    }
+  }
 
   constructor(private canvas: HTMLCanvasElement, private labelLayer: HTMLElement) {
     this.ctx = canvas.getContext('2d')!;
@@ -259,7 +288,7 @@ export class Renderer {
   }
 
   /** A procedural planet: noise terrain on a rotating, tilted sphere, lit with dithered shading. */
-  private planet(X: number, Y: number, r: number, L: B.Look, t: number) {
+  private planet(X: number, Y: number, r: number, L: B.Look, t: number, smog = 0) {
     if (L.ring) this.ring(X, Y, r, L, t, false);
     const rot = t * 0.0003 * L.spin + (L.seed % 628) / 100;
     const crot = rot * 1.35;
@@ -274,8 +303,9 @@ export class Renderer {
         const tx = nx * ct - ny * st, ty = nx * st + ny * ct;
         const sample = B.surface(L, tx * cr + nz * sr, ty, -tx * sr + nz * cr, t, x + r, y + r);
         let c = sample.c, glow = sample.glow;
+        if (smog) c = mix(c, SMOG, smog * 0.45);
         if (B.cloud(L, tx * ccr + nz * csr, ty, -tx * csr + nz * ccr)) {
-          c = '#eef2ff';
+          c = smog ? mix('#eef2ff', SMOG, 0.3 + smog * 0.4) : '#eef2ff';
           glow = false;
         }
         const light = nx * LIGHT[0] + ny * LIGHT[1] + nz * LIGHT[2] + BAYER[(x & 1) + ((y & 1) << 1)] * 0.18;
@@ -286,7 +316,7 @@ export class Renderer {
     if (L.ring) this.ring(X, Y, r, L, t, true);
   }
 
-  private moon(X: number, Y: number, r: number, t: number, wobble = 0) {
+  private moon(X: number, Y: number, r: number, t: number, wobble = 0, smog = 0) {
     const ox = wobble ? Math.round(Math.sin(t / 60) * wobble) : 0;
     for (let y = -r; y <= r; y++)
       for (let x = -r; x <= r; x++) {
@@ -295,6 +325,7 @@ export class Renderer {
         let c = (Math.floor((x + t / 300) / 2) + y) & 1 ? '#8a88b8' : '#6e6c9c';
         if (x + y > r * 0.4) c = '#4a4870';
         if (d > 0.8) c = '#34325a';
+        if (smog) c = mix(c, SMOG, smog * 0.4);
         this.px(X + x + ox, Y + y, c);
       }
   }
@@ -480,7 +511,12 @@ export class Renderer {
     for (const P of sc.world.planets) {
       const g = lay.get(P.id)!;
       const moons = sc.world.moons.filter((m) => m.planetId === P.id);
-      this.planet(g.x, g.y, g.r, planetLook(P), t);
+      const hosts = [null, ...moons.map((m) => m.id)];
+      const smog = Math.max(...hosts.map((h) => M.pollution(sc.world.blobs.filter((b) => b.planetId === P.id && b.moonId === h).length, sc.crowdedAt)));
+      this.planet(g.x, g.y, g.r, planetLook(P), t, smog);
+      if (smog) St.smog(this.put, g.x, g.y, g.r, smog, t);
+      if (M.sumDiffs([P.diff, ...moons.map((m) => m.diff)]).files) St.tinyCrane(this.put, Math.round(g.x + g.r * 0.55), Math.round(g.y - g.r * 0.8));
+      this.hoverables.push({ kind: 'planet', id: P.id, x: g.x, y: g.y, r: g.r + 3 });
       moons.forEach((_, i) => {
         const a = i * 2.4 + t / 5000;
         this.moon(Math.round(g.x + Math.cos(a) * (g.r + 8)), Math.round(g.y + Math.sin(a) * (g.r + 8) * 0.5), 2, t);
@@ -517,12 +553,19 @@ export class Renderer {
       const h = host ? { x: host.x, y: host.y + 12 } : { x: L.X0, y: L.Y0 + pr + 9 };
       this.tether(h.x, h.y, q.x, q.y - 4 - (4 + M.ctx(b) * 8) * 2, mix(PAL[M.palette(b)][1], GREY, M.decay(b, Date.now(), sc.thresholds) * 0.8), t);
     }
-    this.planet(L.X0, L.Y0, pr, look, t);
+    const crowd = (moonId: string | null) => M.pollution(blobs.filter((b) => b.moonId === moonId).length, sc.crowdedAt);
+    const rootSmog = crowd(null);
+    this.planet(L.X0, L.Y0, pr, look, t, rootSmog);
+    this.surfaceLife(L.X0, L.Y0, pr, rootSmog, M.construction(P.diff), t, look.seed % 97, false);
+    this.hoverables.push({ kind: 'planet', id: P.id, x: L.X0, y: L.Y0, r: pr + 4 });
     this.moonsDrawn.clear();
     for (const m of L.moons) {
       const dying = sc.deleting?.kind === 'moon' && sc.deleting.id === m.moon.id;
-      this.moon(m.x, m.y, 6, t, dying ? (sc.deleting!.phase === 'shake' ? 2 : 1) : m.moon.dirty ? 0.6 : 0);
+      const moonSmog = crowd(m.moon.id);
+      this.moon(m.x, m.y, 6, t, dying ? (sc.deleting!.phase === 'shake' ? 2 : 1) : 0, moonSmog);
+      if (!dying) this.surfaceLife(m.x, m.y, 6, moonSmog, M.construction(m.moon.diff), t, seed(m.moon.id), true);
       this.moonsDrawn.set(m.moon.id, { x: m.x, y: m.y });
+      this.hoverables.push({ kind: 'moon', id: m.moon.id, x: m.x, y: m.y, r: 9 });
       lb.push({ x: m.x, y: m.y + 8, text: M.trunc(m.moon.branch, 16) + (m.moon.dirty ? ' *' : ''), fg: '#6e6aa8', bg: 'transparent' });
     }
     const kind = B.BIOME_LABEL[look.biome] + (P.isRepo ? '' : ' · no repo');
@@ -562,6 +605,7 @@ export class Renderer {
     this.space(t);
     const lb: Label[] = [];
     this.drawn.clear();
+    this.hoverables = [];
     if (sc.level === 'galaxy') {
       this.cam = 0;
       this.drawGalaxy(sc, t, lb);

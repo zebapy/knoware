@@ -8,6 +8,7 @@ const planet = (path: string, traits: Partial<PlanetTraits> = {}, isRepo = true)
   path,
   isRepo,
   traits: { language: 'rust', languagePct: 80, files: 300, commits: 120, ...traits },
+  diff: { files: 0, insertions: 0, deletions: 0, untracked: 0, top: [] },
 });
 
 describe('planet looks', () => {

@@ -106,10 +106,6 @@ pub fn remove_worktree(repo: &Path, path: &Path, force: bool) -> Result<()> {
     Ok(())
 }
 
-pub fn is_dirty(path: &Path) -> bool {
-    git(path, &["status", "--porcelain"]).is_ok_and(|s| !s.is_empty())
-}
-
 /// A branch name that is safe for git and for a directory name.
 pub fn slug(s: &str) -> String {
     let mut out = String::new();
@@ -166,7 +162,6 @@ mod tests {
         let list = worktrees(&repo).unwrap();
         assert_eq!(list.len(), 1);
         assert_eq!(list[0].branch.as_deref(), Some("feature"));
-        assert!(!is_dirty(&wt));
 
         remove_worktree(&repo, &wt, false).unwrap();
         assert!(worktrees(&repo).unwrap().is_empty());

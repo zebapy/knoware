@@ -15,6 +15,9 @@ pub struct Planet {
     /// What the planet's look is generated from. Filled by the signals loop.
     #[serde(default)]
     pub traits: crate::survey::Traits,
+    /// Uncommitted work in the root checkout.
+    #[serde(default)]
+    pub diff: crate::diff::DiffStat,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -26,6 +29,8 @@ pub struct Moon {
     pub path: PathBuf,
     #[serde(default)]
     pub dirty: bool,
+    #[serde(default)]
+    pub diff: crate::diff::DiffStat,
 }
 
 /// What the agent process is doing right now.
@@ -136,6 +141,9 @@ pub struct Settings {
     pub auto_cleanup_merged_moons: bool,
     pub worktree_root: PathBuf,
     pub signals_poll_secs: u64,
+    pub diff_poll_secs: u64,
+    /// Agents on one planet root or moon before it starts to look polluted.
+    pub crowded_at: u32,
 }
 
 impl Default for Settings {
@@ -165,6 +173,8 @@ impl Default for Settings {
             auto_cleanup_merged_moons: false,
             worktree_root: home().join(".knoware").join("worktrees"),
             signals_poll_secs: 60,
+            diff_poll_secs: 8,
+            crowded_at: 4,
         }
     }
 }
@@ -314,6 +324,7 @@ mod tests {
                 path: "/src/api".into(),
                 is_repo: true,
                 traits: Default::default(),
+                diff: Default::default(),
             }],
             moons: vec![Moon {
                 id: "m".into(),
@@ -321,6 +332,7 @@ mod tests {
                 branch: "x".into(),
                 path: "/wt/api/x".into(),
                 dirty: false,
+                diff: Default::default(),
             }],
             blobs: vec![],
         };

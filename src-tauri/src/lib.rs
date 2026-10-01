@@ -1,4 +1,5 @@
 mod agent;
+mod diff;
 mod git;
 mod signals;
 mod state;
@@ -94,6 +95,7 @@ async fn add_planet(app: State<'_, Shared>, path: String) -> Res<Created> {
             id: id.clone(),
             name,
             traits,
+            diff: Default::default(),
             path,
             is_repo,
         });
@@ -219,6 +221,7 @@ async fn new_moon(
         branch: branch.clone(),
         path,
         dirty: false,
+        diff: Default::default(),
     });
     let mut blob = make_blob(&app, &planet_id, Some(moon_id), agent)?;
     blob.issues = world::issue_keys(&branch);

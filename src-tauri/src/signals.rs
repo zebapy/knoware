@@ -1,6 +1,7 @@
 //! The signals layer: PR + CI state from GitHub (via the `gh` CLI), issue keys from branch
 //! names, and keeping moons in sync with the worktrees git actually has.
 
+use crate::diff::{self, DiffStat};
 use crate::git;
 use crate::state::Shared;
 use crate::world::{self, Activity, CiState, Moon, Planet, PrSignal, PrState, World};
@@ -116,6 +117,7 @@ fn sync_moons(world: &mut World, planet: &Planet) -> Vec<String> {
                 branch: t.branch.clone().unwrap_or_else(|| "detached".into()),
                 path: t.path.clone(),
                 dirty: false,
+                diff: Default::default(),
             });
         }
     }
@@ -158,8 +160,51 @@ fn survey_planets(app: &Shared) {
     }
 }
 
+/// Recompute uncommitted work for every planet root and moon. Returns true when anything changed.
+pub fn refresh_diffs(app: &Shared) -> bool {
+    let world = app.snapshot();
+    let roots: Vec<(String, DiffStat)> = world
+        .planets
+        .iter()
+        .filter(|p| p.is_repo)
+        .map(|p| (p.id.clone(), diff::diff_stat(&p.path)))
+        .collect();
+    let moons: Vec<(String, DiffStat)> = world
+        .moons
+        .iter()
+        .map(|m| (m.id.clone(), diff::diff_stat(&m.path)))
+        .collect();
+    let mut changed = false;
+    let mut world = app.world.lock().unwrap();
+    for (id, stat) in roots {
+        if let Some(p) = world
+            .planets
+            .iter_mut()
+            .find(|p| p.id == id)
+            .filter(|p| p.diff != stat)
+        {
+            p.diff = stat;
+            changed = true;
+        }
+    }
+    for (id, stat) in moons {
+        if let Some(m) = world
+            .moons
+            .iter_mut()
+            .find(|m| m.id == id)
+            .filter(|m| m.diff != stat)
+        {
+            m.dirty = stat.is_dirty();
+            m.diff = stat;
+            changed = true;
+        }
+    }
+    changed
+}
+
 pub fn refresh(app: &Shared) {
     survey_planets(app);
+    refresh_diffs(app);
     let planets: Vec<Planet> = app
         .snapshot()
         .planets
@@ -180,16 +225,10 @@ pub fn refresh(app: &Shared) {
                 .cloned()
                 .collect()
         };
-        let dirty: HashMap<String, bool> = moons
-            .iter()
-            .map(|m| (m.id.clone(), git::is_dirty(&m.path)))
-            .collect();
-
         let mut cleanup = Vec::new();
         {
             let mut world = app.world.lock().unwrap();
             for m in world.moons.iter_mut().filter(|m| m.planet_id == planet.id) {
-                m.dirty = dirty.get(&m.id).copied().unwrap_or(false);
                 let merged = prs
                     .get(&m.branch)
                     .is_some_and(|p| p.state == PrState::Merged);
@@ -226,6 +265,16 @@ pub fn refresh(app: &Shared) {
 }
 
 pub fn start_polling(app: Shared) {
+    // Diffs move fast while agents work, so they get their own quicker loop.
+    let diffs = app.clone();
+    std::thread::spawn(move || {
+        loop {
+            std::thread::sleep(Duration::from_secs(diffs.settings.diff_poll_secs.max(2)));
+            if refresh_diffs(&diffs) {
+                diffs.world_changed();
+            }
+        }
+    });
     std::thread::spawn(move || {
         loop {
             refresh(&app);
