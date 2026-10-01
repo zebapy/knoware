@@ -12,6 +12,9 @@ pub struct Planet {
     pub name: String,
     pub path: PathBuf,
     pub is_repo: bool,
+    /// What the planet's look is generated from. Filled by the signals loop.
+    #[serde(default)]
+    pub traits: crate::survey::Traits,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -310,6 +313,7 @@ mod tests {
                 name: "api".into(),
                 path: "/src/api".into(),
                 is_repo: true,
+                traits: Default::default(),
             }],
             moons: vec![Moon {
                 id: "m".into(),

@@ -9,6 +9,15 @@ export interface Planet {
   name: string;
   path: string;
   isRepo: boolean;
+  traits: PlanetTraits;
+}
+
+/** Surveyed from the directory (src-tauri/src/survey.rs); drives the planet's biome and shape. */
+export interface PlanetTraits {
+  language: string | null;
+  languagePct: number;
+  files: number;
+  commits: number;
 }
 
 export interface Moon {

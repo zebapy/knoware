@@ -147,7 +147,19 @@ pub fn drop_moon(world: &mut World, moon_id: &str, planet: &Planet) {
 }
 
 /// One pass over every repo planet. Blocking: shells out to git and gh.
+/// Re-survey every planet so its look follows the code as it changes.
+fn survey_planets(app: &Shared) {
+    for p in app.snapshot().planets {
+        let traits = crate::survey::survey(&p.path, p.is_repo);
+        let mut world = app.world.lock().unwrap();
+        if let Some(planet) = world.planets.iter_mut().find(|q| q.id == p.id) {
+            planet.traits = traits;
+        }
+    }
+}
+
 pub fn refresh(app: &Shared) {
+    survey_planets(app);
     let planets: Vec<Planet> = app
         .snapshot()
         .planets

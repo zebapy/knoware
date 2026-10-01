@@ -1,5 +1,6 @@
 // The pixel world: space, planets, moons and blobs, drawn into one low-res buffer per frame.
 // Ported from prototypes/galaxy.html; layout now scales to any number of planets, moons and blobs.
+import * as B from './biome';
 import * as M from './model';
 import type { Thresholds } from './model';
 import type { Blob, Moon, Planet, World } from './types';
@@ -15,15 +16,6 @@ export const PAL: Record<M.Palette, string[]> = {
   red: ['#a8324e', '#f0566e', '#ff9aa0', '#c24fa0'],
   attn: ['#c46a2c', '#f2b24c', '#ffe08a', '#f07a5a'],
 };
-
-const PLANET_PALS = [
-  ['#2a2f6b', '#3a3f8a', '#4d4fa8', '#6a5fc0'],
-  ['#1f4f5c', '#2b6f78', '#3c8f8a', '#5fb0a0'],
-  ['#4a2a5c', '#6a3a78', '#8a4f8f', '#b06aa0'],
-  ['#5c3a1f', '#7a5230', '#9a6f45', '#c09060'],
-  ['#2a4a2f', '#3a6a40', '#4f8a55', '#70a870'],
-];
-const NOREPO_PAL = ['#34344a', '#44445c', '#55556e', '#666680'];
 
 // ---------- colors ----------
 
@@ -110,9 +102,23 @@ export interface PlanetLayout {
   pos: Map<string, Spot>;
 }
 
-export function planetPalette(p: Planet): string[] {
-  return p.isRepo ? PLANET_PALS[seed(p.id) % PLANET_PALS.length] : NOREPO_PAL;
+const looks = new Map<string, B.Look>();
+/** A planet's procedural look, cached until its path or traits change. */
+export function planetLook(p: Planet): B.Look {
+  const key = `${p.path}|${p.isRepo}|${p.traits.language}|${p.traits.languagePct}|${p.traits.files}|${p.traits.commits}`;
+  let l = looks.get(key);
+  if (!l) {
+    l = B.look(p);
+    looks.set(key, l);
+  }
+  return l;
 }
+
+const BAYER = [0, 0.5, 0.75, 0.25];
+const LIGHT = (() => {
+  const v = [-0.55, -0.6, 0.58], n = Math.hypot(...v);
+  return v.map((c) => c / n);
+})();
 
 /** Galaxy: planets on a loose grid, jittered per id so the map feels hand-placed but stays stable. */
 export function galaxyLayout(world: World, W: number, H: number): Map<string, Spot & { r: number }> {
@@ -125,9 +131,9 @@ export function galaxyLayout(world: World, W: number, H: number): Map<string, Sp
   world.planets.forEach((p, i) => {
     const row = Math.floor(i / cols), inRow = row === rows - 1 ? n - row * cols : cols;
     const col = i % cols, offset = (cols - inRow) * cw / 2;
-    const s = seed(p.id);
+    const s = B.hashString(p.path) % 997;
     const blobs = world.blobs.filter((b) => b.planetId === p.id).length;
-    const r = Math.round(Math.max(7, Math.min(8 + blobs * 1.2, Math.min(cw, ch) / 4.5)));
+    const r = Math.round(Math.max(6, Math.min(9 * planetLook(p).size + blobs * 0.6, Math.min(cw, ch) / 4.5)));
     out.set(p.id, {
       x: Math.round(offset + cw * (col + 0.5) + ((s % 7) - 3) * cw / 24),
       y: Math.round(ch * (row + 0.5) + (((s >> 3) % 5) - 2) * ch / 18),
@@ -239,23 +245,45 @@ export class Renderer {
     }
   }
 
-  private planet(X: number, Y: number, r: number, pal: string[], ring: boolean, t: number) {
+  private ring(X: number, Y: number, r: number, L: B.Look, t: number, front: boolean) {
+    const [hi, lo] = L.ringColors;
+    for (let a = 0; a < 6.28; a += 0.02) {
+      const rx = Math.cos(a) * r * 1.75, ry = Math.sin(a) * r * L.ringTilt;
+      if (ry >= 0 !== front) continue;
+      // Tilt the ring with the planet's axis.
+      const x = rx * Math.cos(L.tilt) - ry * Math.sin(L.tilt), y = rx * Math.sin(L.tilt) + ry * Math.cos(L.tilt);
+      const c = ((a * 20 + t / 80) | 0) % 3 ? hi : lo;
+      this.px(X + x, Y + y, c);
+      if (r > 12) this.px(X + x * 1.08, Y + y * 1.08, lo);
+    }
+  }
+
+  /** A procedural planet: noise terrain on a rotating, tilted sphere, lit with dithered shading. */
+  private planet(X: number, Y: number, r: number, L: B.Look, t: number) {
+    if (L.ring) this.ring(X, Y, r, L, t, false);
+    const rot = t * 0.0003 * L.spin + (L.seed % 628) / 100;
+    const crot = rot * 1.35;
+    const ct = Math.cos(L.tilt), st = Math.sin(L.tilt);
+    const cr = Math.cos(rot), sr = Math.sin(rot), ccr = Math.cos(crot), csr = Math.sin(crot);
     for (let y = -r; y <= r; y++)
       for (let x = -r; x <= r; x++) {
-        const d = (x * x + y * y) / (r * r);
+        const nx = x / r, ny = y / r, d = nx * nx + ny * ny;
         if (d > 1) continue;
-        const band = Math.floor(((y + r) / (r * 2)) * 6 + Math.sin((x + t / 180) / 5) * 0.6);
-        let c = pal[((band % 4) + 4) % 4];
-        if (x + y > r * 0.6) c = mix(c, INK, 0.35);
-        if (d > 0.86) c = mix(c, INK, 0.5);
+        const nz = Math.sqrt(1 - d);
+        // Tilt the axis, then spin around it.
+        const tx = nx * ct - ny * st, ty = nx * st + ny * ct;
+        const sample = B.surface(L, tx * cr + nz * sr, ty, -tx * sr + nz * cr, t, x + r, y + r);
+        let c = sample.c, glow = sample.glow;
+        if (B.cloud(L, tx * ccr + nz * csr, ty, -tx * csr + nz * ccr)) {
+          c = '#eef2ff';
+          glow = false;
+        }
+        const light = nx * LIGHT[0] + ny * LIGHT[1] + nz * LIGHT[2] + BAYER[(x & 1) + ((y & 1) << 1)] * 0.18;
+        if (!glow) c = mix(c, INK, light > 0.42 ? 0 : light > 0.08 ? 0.3 : 0.55);
+        if (d > 0.88) c = mix(c, INK, glow ? 0.25 : 0.5);
         this.px(X + x, Y + y, c);
       }
-    if (ring)
-      for (let a = 0; a < 6.28; a += 0.025) {
-        const rx = Math.cos(a) * r * 1.7, ry = Math.sin(a) * r * 0.35;
-        if (ry < 0 && Math.abs(rx) < r) continue;
-        this.px(X + rx, Y + ry + 2, ((a * 20 + t / 80) | 0) % 3 ? '#8a7fd0' : '#5a50a0');
-      }
+    if (L.ring) this.ring(X, Y, r, L, t, true);
   }
 
   private moon(X: number, Y: number, r: number, t: number, wobble = 0) {
@@ -452,7 +480,7 @@ export class Renderer {
     for (const P of sc.world.planets) {
       const g = lay.get(P.id)!;
       const moons = sc.world.moons.filter((m) => m.planetId === P.id);
-      this.planet(g.x, g.y, g.r, planetPalette(P), moons.length >= 2, t);
+      this.planet(g.x, g.y, g.r, planetLook(P), t);
       moons.forEach((_, i) => {
         const a = i * 2.4 + t / 5000;
         this.moon(Math.round(g.x + Math.cos(a) * (g.r + 8)), Math.round(g.y + Math.sin(a) * (g.r + 8) * 0.5), 2, t);
@@ -468,7 +496,7 @@ export class Renderer {
       });
       const sel = P.id === sc.planetId;
       if (sel) for (let a = 0; a < 6.28; a += 0.1) if (((a * 8 + t / 200) | 0) % 2) this.px(g.x + Math.cos(a) * (g.r + 20), g.y + Math.sin(a) * (g.r + 14) + 2, '#e8f6ff');
-      lb.push({ x: g.x, y: g.y + g.r + 16, text: `${P.name} · ${bs.length}`, fg: sel ? '#e8f6ff' : '#8a88b8', bg: 'rgba(11,12,28,.6)' });
+      lb.push({ x: g.x, y: g.y + g.r + (bs.length ? 16 : 6), text: `${P.name} · ${bs.length}`, fg: sel ? '#e8f6ff' : '#8a88b8', bg: 'rgba(11,12,28,.6)' });
     }
   }
 
@@ -482,13 +510,14 @@ export class Renderer {
     this.cam += (tgt - this.cam) * 0.12;
     const L = planetLayout(sc.world, P.id, this.W, this.H, Math.round(this.cam));
     const blobs = sc.world.blobs.filter((b) => b.planetId === P.id);
+    const look = planetLook(P), pr = Math.round(18 * look.size);
 
     for (const b of blobs) {
       const q = L.pos.get(b.id)!, host = L.moons.find((m) => m.moon.id === b.moonId);
-      const h = host ? { x: host.x, y: host.y + 12 } : { x: L.X0, y: L.Y0 + 27 };
+      const h = host ? { x: host.x, y: host.y + 12 } : { x: L.X0, y: L.Y0 + pr + 9 };
       this.tether(h.x, h.y, q.x, q.y - 4 - (4 + M.ctx(b) * 8) * 2, mix(PAL[M.palette(b)][1], GREY, M.decay(b, Date.now(), sc.thresholds) * 0.8), t);
     }
-    this.planet(L.X0, L.Y0, 18, planetPalette(P), L.moons.length >= 2, t);
+    this.planet(L.X0, L.Y0, pr, look, t);
     this.moonsDrawn.clear();
     for (const m of L.moons) {
       const dying = sc.deleting?.kind === 'moon' && sc.deleting.id === m.moon.id;
@@ -496,7 +525,8 @@ export class Renderer {
       this.moonsDrawn.set(m.moon.id, { x: m.x, y: m.y });
       lb.push({ x: m.x, y: m.y + 8, text: M.trunc(m.moon.branch, 16) + (m.moon.dirty ? ' *' : ''), fg: '#6e6aa8', bg: 'transparent' });
     }
-    lb.push({ x: L.X0, y: L.Y0 + 21, text: P.name + (P.isRepo ? '' : ' (no repo)'), fg: '#8a88b8', bg: 'transparent' });
+    const kind = B.BIOME_LABEL[look.biome] + (P.isRepo ? '' : ' · no repo');
+    lb.push({ x: L.X0, y: L.Y0 + pr + 3, text: `${P.name} · ${kind}`, fg: '#8a88b8', bg: 'transparent' });
     if (!blobs.length) lb.push({ x: L.X0, y: L.Y0 + 70, text: 'n spawns an agent here', fg: '#6e6aa8', bg: 'transparent' });
 
     for (const b of blobs) {

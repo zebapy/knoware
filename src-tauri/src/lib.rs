@@ -2,6 +2,7 @@ mod agent;
 mod git;
 mod signals;
 mod state;
+mod survey;
 mod world;
 
 use agent::{Cmd, StartMode};
@@ -68,6 +69,7 @@ async fn add_planet(app: State<'_, Shared>, path: String) -> Res<Created> {
     let root = git::repo_root(&path);
     let is_repo = root.is_some();
     let path = root.unwrap_or(path);
+    let traits = survey::survey(&path, is_repo);
     let id = {
         let mut world = app.world.lock().unwrap();
         if let Some(p) = world.planets.iter().find(|p| p.path == path) {
@@ -91,6 +93,7 @@ async fn add_planet(app: State<'_, Shared>, path: String) -> Res<Created> {
         world.planets.push(Planet {
             id: id.clone(),
             name,
+            traits,
             path,
             is_repo,
         });

@@ -51,6 +51,24 @@ Closing the window keeps agents running. The tray icon brings it back and bounce
 - **`src/render.ts`** — the pixel renderer, ported from [`prototypes/galaxy.html`](prototypes/galaxy.html).
 - **`src/model.ts`** — the rules for how a blob looks: palette, mood, dormancy, decay, urgency order.
 
+## Planets
+
+Every planet is generated from its directory, so the same repo always becomes the same world. The app surveys each planet (`src-tauri/src/survey.rs`) for its dominant language (by tracked file extensions), file count and commit count. `src/biome.ts` turns that, plus a hash of the path, into a look:
+
+| Dominant language | Biome |
+|---|---|
+| Rust | volcanic: basalt, lava seas, glowing cracks |
+| TypeScript, JavaScript | jungle: continents, oceans, clouds |
+| Python | ocean world: islands, heavy cloud |
+| Go | tundra: ice, crevasses, polar snow |
+| Java/Kotlin, C#, PHP | desert: dunes, canyons, craters |
+| Ruby, Elixir, Swift, Haskell | crystal: faceted, sparkling |
+| C, C++, Zig | toxic swamp: glowing acid pools |
+| Shell, or no language over 35% | gas giant: turbulent bands, a storm |
+| Plain folders, docs-only repos | barren rock: craters |
+
+Unknown languages get a biome picked from the path's hash. Bigger repos are bigger planets. Repos with 1,000+ commits wear rings. Spin speed, axial tilt, terrain and clouds all come from the path's hash.
+
 ## Settings
 
 `settings.json` in the app's config dir (`~/.config/knoware/` on Linux, `~/Library/Application Support/knoware/` on macOS) is written with defaults on first launch:
