@@ -1,5 +1,8 @@
 # knoware
 
+> [!WARNING]
+> **Experimental and very alpha.** Knoware is a visual side project: a way to make working with coding agents a bit more fun every once in a while, not a tool to rely on. Expect rough edges, missing pieces and things that just don't work.
+
 A keyboard-first desktop app for running and steering coding agents, drawn as a 16-bit sci-fi world.
 
 - **Planets** are repos (or plain directories).
@@ -109,3 +112,7 @@ Any ACP agent can be added under `agents`. [`scripts/mock-agent.mjs`](scripts/mo
 - [`docs/spec.md`](docs/spec.md) — the design spec.
 - [`docs/backlog.md`](docs/backlog.md) — features to consider later (gaps vs. Conductor).
 - [`prototypes/galaxy.html`](prototypes/galaxy.html) — the original visual prototype.
+
+## License
+
+[MIT](LICENSE)
