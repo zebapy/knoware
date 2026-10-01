@@ -6,12 +6,77 @@ A keyboard-first desktop app for running and steering coding agents, drawn as a 
 - **Moons** are git worktrees.
 - **Blobs** are agent sessions: they shimmer, grow with context, bounce when blocked, turn red and sad on failing CI, and slowly rot when their PR goes stale.
 
-Agent-agnostic via the [Agent Client Protocol](https://agentclientprotocol.com) (Claude Code, Codex, and any other ACP agent). Planned as a Tauri app with a Rust backend.
+Agent-agnostic via the [Agent Client Protocol](https://agentclientprotocol.com) (Claude Code, Codex, and any other ACP agent). A Tauri app with a Rust backend.
 
-## Status
+## Run it
 
-Design stage. Nothing to install yet.
+Needs Rust, Node 22+, pnpm, `git`, and (for PR/CI signals) the GitHub CLI `gh`, signed in. On Linux, also the [Tauri system packages](https://v2.tauri.app/start/prerequisites/#linux).
+
+```sh
+pnpm install
+pnpm tauri dev                          # run with hot reload
+pnpm tauri build                        # build the app bundle
+```
+
+Checks: `pnpm typecheck`, `pnpm test`, and `cargo test` / `cargo clippy` in `src-tauri/`.
+
+First launch: press `a` and give a path to a repo or folder. Press `?` in the app for every key.
+
+## Keys
+
+| Key | Action |
+|---|---|
+| Arrows | Move between planets, or blobs (most urgent first) |
+| `Enter` | Zoom in / open session / focus the reply box |
+| `Esc` | Zoom out one level |
+| `Space` | Jump to the next blocked blob, across planets |
+| `y` | Allow a blocked permission request (`1`–`9` picks any option) |
+| `n` | Spawn a blob where focused (planet root or the selected blob's moon) |
+| `Shift+N` | New moon (worktree) + blob on it |
+| `Del` | Delete blob: shocked eyes, shake, shatter. `Esc` / `u` during the shake undoes it |
+| `Shift+Del` | Delete the selected blob's moon (removes the worktree; again to force a dirty one) |
+| `f` | Fork the selected session into a new blob |
+| `s` | Stop the current turn |
+| `w` | Wake a dormant blob (loads its session) |
+| `a` | Add a planet |
+| `r` | Refresh PR/CI signals and look for existing sessions |
+
+Closing the window keeps agents running. The tray icon brings it back and bounces while anything is blocked.
+
+## How it works
+
+- **`src-tauri/src/agent.rs`** — the ACP client. Each blob gets its own agent subprocess (on its own thread) speaking ACP over stdio: `initialize`, `session/new` / `session/load` / `session/resume` / `session/fork`, `session/prompt`, `session/cancel`. Permission requests park until you answer. `session/list` discovers sessions you already have; they're placed on a planet by working directory and appear dormant.
+- **`src-tauri/src/signals.rs`** — polls `gh pr list` per repo planet and joins PRs to blobs by branch. CI state comes from the status-check rollup. Linear-style issue keys in branch names (e.g. `eng-142`) become amber dots. Also keeps moons in sync with `git worktree list`, and runs the optional auto-cleanup of merged, clean moons.
+- **`src-tauri/src/world.rs`** — planets, moons, blobs, settings. Persisted as JSON.
+- **`src/render.ts`** — the pixel renderer, ported from [`prototypes/galaxy.html`](prototypes/galaxy.html).
+- **`src/model.ts`** — the rules for how a blob looks: palette, mood, dormancy, decay, urgency order.
+
+## Settings
+
+`settings.json` in the app's config dir (`~/.config/knoware/` on Linux, `~/Library/Application Support/knoware/` on macOS) is written with defaults on first launch:
+
+```json
+{
+  "agents": {
+    "claude": { "command": "npx", "args": ["-y", "@agentclientprotocol/claude-agent-acp@latest"] },
+    "codex": { "command": "npx", "args": ["-y", "@agentclientprotocol/codex-acp@latest"] }
+  },
+  "defaultAgent": "claude",
+  "dormantAfterHours": 2,
+  "sessionDecayStartDays": 2,
+  "sessionDecayFullDays": 14,
+  "prDecayStartDays": 3,
+  "prDecayFullDays": 21,
+  "autoCleanupMergedMoons": false,
+  "worktreeRoot": "~/.knoware/worktrees",
+  "signalsPollSecs": 60
+}
+```
+
+Any ACP agent can be added under `agents`. [`scripts/mock-agent.mjs`](scripts/mock-agent.mjs) is a fake agent for trying the app without spending tokens: add `"mock": { "command": "node", "args": ["/path/to/scripts/mock-agent.mjs"] }` and set `"defaultAgent": "mock"`.
+
+## Docs
 
 - [`docs/spec.md`](docs/spec.md) — the design spec.
 - [`docs/backlog.md`](docs/backlog.md) — features to consider later (gaps vs. Conductor).
-- [`prototypes/galaxy.html`](prototypes/galaxy.html) — interactive visual prototype. Open it in a browser and use the keyboard.
+- [`prototypes/galaxy.html`](prototypes/galaxy.html) — the original visual prototype.

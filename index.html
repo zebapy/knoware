@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Knoware</title>
+  </head>
+  <body>
+    <div id="app">
+      <div id="stage" tabindex="0" aria-label="Agent galaxy. Arrows move, Enter zooms in, Escape zooms out, Space jumps to a blocked agent, n spawns, Shift N new worktree, Delete removes, question mark for help.">
+        <canvas id="cv"></canvas>
+        <div id="labels"></div>
+      </div>
+      <aside id="panel" hidden>
+        <header id="panel-head"></header>
+        <div id="transcript" role="log" aria-live="polite"></div>
+        <div id="permission" hidden></div>
+        <form id="reply-form">
+          <textarea id="reply" rows="3" placeholder="Reply… (Enter sends, Shift+Enter newline, Esc back to world)"></textarea>
+        </form>
+      </aside>
+      <footer id="bar">
+        <span id="crumb"></span>
+        <span id="status"></span>
+        <span class="hint"><kbd>?</kbd> keys</span>
+      </footer>
+      <div id="ask" hidden>
+        <form id="ask-form">
+          <label id="ask-label" for="ask-input"></label>
+          <input id="ask-input" autocomplete="off" spellcheck="false" />
+          <small>Enter to confirm · Esc to cancel</small>
+        </form>
+      </div>
+      <div id="help" hidden>
+        <h2>keys</h2>
+        <dl>
+          <dt>← → ↑ ↓</dt><dd>move between planets, or blobs (most urgent first)</dd>
+          <dt>Enter</dt><dd>zoom in / open session / focus reply</dd>
+          <dt>Esc</dt><dd>zoom out · undo a delete while it shakes</dd>
+          <dt>Space</dt><dd>jump to the next blocked blob, anywhere</dd>
+          <dt>y</dt><dd>allow the blocked permission request</dd>
+          <dt>1–9</dt><dd>pick a permission option (session view)</dd>
+          <dt>n</dt><dd>spawn a blob here (planet root or the selected blob's moon)</dd>
+          <dt>Shift+N</dt><dd>new moon (worktree) with a blob on it</dd>
+          <dt>Del</dt><dd>delete blob (u or Esc to undo) · remove planet at galaxy level</dd>
+          <dt>Shift+Del</dt><dd>delete the selected blob's moon (again to force if dirty)</dd>
+          <dt>f</dt><dd>fork the selected session into a new blob</dd>
+          <dt>s</dt><dd>stop the current turn</dd>
+          <dt>w</dt><dd>wake a dormant blob (resume its session)</dd>
+          <dt>a</dt><dd>add a planet (repo or folder)</dd>
+          <dt>r</dt><dd>refresh PR/CI signals and discover sessions</dd>
+        </dl>
+        <small>Esc or ? to close</small>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

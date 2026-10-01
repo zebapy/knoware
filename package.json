@@ -1,0 +1,29 @@
+{
+  "name": "knoware",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "tauri": "tauri",
+    "icons": "node scripts/make-icons.mjs && tauri icon src-tauri/icons/app-icon.png"
+  },
+  "dependencies": {
+    "@fontsource/vt323": "^5.3.0",
+    "@tauri-apps/api": "^2.11.1"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.5",
+    "typescript": "^5",
+    "vite": "^7",
+    "vitest": "^3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}

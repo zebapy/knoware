@@ -1,0 +1,84 @@
+// Mirrors the Rust world model (src-tauri/src/world.rs, state.rs). Field names are camelCase on the wire.
+
+export type Activity = 'offline' | 'starting' | 'working' | 'idle';
+export type PrState = 'open' | 'merged' | 'closed';
+export type CiState = 'none' | 'running' | 'passing' | 'failing';
+
+export interface Planet {
+  id: string;
+  name: string;
+  path: string;
+  isRepo: boolean;
+}
+
+export interface Moon {
+  id: string;
+  planetId: string;
+  branch: string;
+  path: string;
+  dirty: boolean;
+}
+
+export interface PermissionChoice {
+  optionId: string;
+  name: string;
+  kind: string;
+}
+
+export interface Blocked {
+  title: string;
+  options: PermissionChoice[];
+}
+
+export interface PrSignal {
+  number: number;
+  url: string;
+  state: PrState;
+  ci: CiState;
+  updatedMs: number;
+}
+
+export interface Blob {
+  id: string;
+  planetId: string;
+  moonId: string | null;
+  agent: string;
+  sessionId: string | null;
+  name: string;
+  cwd: string;
+  activity: Activity;
+  blocked: Blocked | null;
+  yourTurn: boolean;
+  last: string;
+  ctxUsed: number;
+  ctxSize: number;
+  lastActivityMs: number;
+  pr: PrSignal | null;
+  issues: string[];
+  subagents: number;
+}
+
+export interface World {
+  planets: Planet[];
+  moons: Moon[];
+  blobs: Blob[];
+}
+
+export interface Settings {
+  agents: Record<string, { command: string; args: string[] }>;
+  defaultAgent: string;
+  dormantAfterHours: number;
+  sessionDecayStartDays: number;
+  sessionDecayFullDays: number;
+  prDecayStartDays: number;
+  prDecayFullDays: number;
+  autoCleanupMergedMoons: boolean;
+}
+
+export type Entry =
+  | { kind: 'user'; text: string }
+  | { kind: 'agent'; text: string }
+  | { kind: 'thought'; text: string }
+  | { kind: 'tool'; id: string; title: string; status: string }
+  | { kind: 'plan'; items: { content: string; status: string }[] }
+  | { kind: 'notice'; text: string };
