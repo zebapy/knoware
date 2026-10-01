@@ -74,7 +74,7 @@ Deleting a blob plays shocked eyes, a building shake (the undo window), then it 
 
 ![A blob being deleted: its eyes go wide, it shakes, then it shatters into pixel chunks while its neighbors stay put.](docs/screenshots/blob-delete.gif)
 
-These come from `gallery.html`, a dev-only page that renders fixture scenes with a fixed clock. To regenerate them, run `pnpm dev`, then `node scripts/capture-gallery.mjs`.
+The blob and planet captures come from `gallery.html`, a dev-only page that renders fixture scenes with a fixed clock. To regenerate them, run `pnpm dev`, then `node scripts/capture-gallery.mjs`.
 
 ## How it works
 
@@ -100,12 +100,18 @@ Every planet is generated from its directory, so the same repo always becomes th
 | Shell, or no language over 35% | gas giant: turbulent bands, a storm |
 | Plain folders, docs-only repos | barren rock: craters |
 
+![Nine planets, one per biome: Rust volcanic, TypeScript jungle, Python ocean world, Go tundra, Java desert, Ruby crystal, C toxic swamp, a polyglot gas giant, and a plain folder as barren rock.](docs/screenshots/planet-biomes.png)
+
 Unknown languages get a biome picked from the path's hash. Bigger repos are bigger planets. Repos with 1,000+ commits wear rings. Spin speed, axial tilt, terrain and clouds all come from the path's hash.
 
 ### Work on the surface
 
 - **Construction:** uncommitted work in a planet's root checkout or a moon's worktree appears as construction on it. This is `git diff HEAD` plus untracked files, polled every few seconds. Under 40 changed lines shows cones, under 400 shows scaffolding, and more shows a crane swinging a load. Hover a planet or moon to see `+/−` lines, file counts and the biggest changed files. The session panel shows the same diff for the selected blob's checkout.
 - **Pollution:** a planet root or moon with too many agents (`crowdedAt`, default 4) grows factories with smoking chimneys, a smog belt, and a brown haze over its surface. These get worse as more agents pile on.
+
+The same planet in each state, so only the state changes. Top row: clean, small diff, medium diff. Middle row: big diff, crowded, very crowded. Bottom row: long history (rings), tiny repo, and worktree moons (one crowded with a big diff, one with a small diff).
+
+![The same ocean planet in nine states: clean; cones for a small diff; scaffolding for a medium diff; a swinging crane for a big diff; factories and smog when crowded, worse when very crowded; rings for long history; smaller for a tiny repo; and two worktree moons, one with factories and a crane, one with a cone.](docs/screenshots/planet-states.gif)
 
 ## Settings
 
@@ -132,6 +138,16 @@ Unknown languages get a biome picked from the path's hash. Bigger repos are bigg
 ```
 
 Any ACP agent can be added under `agents`. [`scripts/mock-agent.mjs`](scripts/mock-agent.mjs) is a fake agent for trying the app without spending tokens: add `"mock": { "command": "node", "args": ["/path/to/scripts/mock-agent.mjs"] }` and set `"defaultAgent": "mock"`.
+
+## To-dos
+
+- [ ] **Run the Claude Code CLI natively.** Give each blob a real terminal session running `claude`, so you get its full interactive UI, slash commands, settings and plugins. Today Knoware drives Claude Code only through the ACP adapter. This is the biggest gap.
+- [ ] Check rendering, the tray icon and the login-shell `PATH` handling on macOS. So far the app has only been run on Linux.
+- [ ] A settings screen. Today settings live in `settings.json`.
+- [ ] Clickable PR links, and real Linear issue data instead of keys parsed from branch names.
+- [ ] Sub-agent blobs for agents other than Claude. Claude marks its sub-agent tool calls; other agents don't.
+- [ ] A cheaper diff poll for very large repos.
+- [ ] Pick items from [`docs/backlog.md`](docs/backlog.md): diff viewer, setup scripts for new moons, checkpoints, notifications.
 
 ## Docs
 

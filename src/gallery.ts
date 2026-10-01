@@ -75,7 +75,38 @@ const SCENES: Record<string, () => Blob[]> = {
 
 const params = new URLSearchParams(location.search);
 const sceneName = params.get('scene') ?? 'states';
-const world: World = { planets: [planet], moons: [], blobs: SCENES[sceneName]() };
+const num = (key: string, fallback = 0) => Number(params.get(key) ?? fallback);
+const diffOf = (lines: number): DiffStat => (lines ? { ...CLEAN, files: Math.max(1, Math.round(lines / 60)), insertions: lines } : CLEAN);
+
+/**
+ * `scene=planet`: one planet built from query params, for biome and surface-state captures.
+ * name, lang (omit for a plain folder), files, commits, diff (lines), agents (on the root),
+ * worktrees=1 adds two moons: one crowded with a big diff, one with a small diff.
+ */
+function planetScene(): World {
+  const lang = params.get('lang');
+  const p: Planet = {
+    ...planet,
+    name: params.get('name') ?? 'planet',
+    path: `/gallery/${params.get('seed') ?? params.get('name') ?? 'planet'}`,
+    isRepo: lang !== null,
+    traits: { language: lang, languagePct: num('pct', 90), files: num('files', 400), commits: num('commits', 50) },
+    diff: diffOf(num('diff')),
+  };
+  const moons = num('worktrees')
+    ? [
+        { id: 'm1', planetId: 'p', branch: 'eng-142-parser', path: '/gallery/m1', dirty: true, diff: diffOf(900) },
+        { id: 'm2', planetId: 'p', branch: 'fix-typo', path: '/gallery/m2', dirty: true, diff: diffOf(8) },
+      ]
+    : [];
+  const blobs = [
+    ...Array.from({ length: num('agents') }, (_, i) => blob(`agent-${i}`, { activity: 'working' })),
+    ...(num('worktrees') ? Array.from({ length: 5 }, (_, i) => blob(`moon-${i}`, { moonId: 'm1', activity: 'working' })) : []),
+  ];
+  return { planets: [p], moons, blobs };
+}
+
+const world: World = sceneName === 'planet' ? planetScene() : { planets: [planet], moons: [], blobs: SCENES[sceneName]() };
 
 const renderer = new Renderer(document.getElementById('cv') as HTMLCanvasElement, document.getElementById('labels')!);
 
@@ -100,7 +131,8 @@ function scene(now: number): Scene {
     thresholds: M.DEFAULT_THRESHOLDS,
     deleting,
     born: new Map(),
-    crowdedAt: 99,
+    // Only the planet scene shows pollution; the blob scenes keep the surface clean.
+    crowdedAt: sceneName === 'planet' ? 4 : 99,
   };
 }
 
